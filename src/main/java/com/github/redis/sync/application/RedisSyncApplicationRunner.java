@@ -16,7 +16,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -35,22 +34,21 @@ public class RedisSyncApplicationRunner implements ApplicationRunner {
     @Autowired
     private RedisDataSyncService redisDataSyncService;
 
-
-
     @Override
     public void run(ApplicationArguments args) throws Exception {
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
         log.info("Redis数据同步启动....");
         Set<String> scanKeys = redisSourceScanService.execute();
+        log.info("scanKeys:{}", scanKeys.size());
         List<String> stringList = Lists.newArrayList(scanKeys);
-        List<List<String>> list = Lists.partition(stringList, 10);
-//        CountDownLatch countDownLatch = new CountDownLatch(list.size());
+        List<List<String>> list = Lists.partition(stringList, 10000);
+        CountDownLatch countDownLatch = new CountDownLatch(list.size());
         AtomicLong atomicLong = new AtomicLong();
         for (List<String> strings : list) {
-            redisDataSyncService.execute(Sets.newHashSet(strings), atomicLong);
+            redisDataSyncService.execute(Sets.newHashSet(strings), countDownLatch, atomicLong);
         }
-//        countDownLatch.await();
+        countDownLatch.await();
         log.info(atomicLong.toString());
         log.info("Redis数据同步完成，耗时:{}ms", stopWatch.getTime(TimeUnit.MILLISECONDS));
     }

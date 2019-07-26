@@ -11,5 +11,5 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public interface RedisDataSyncService {
 
-    void execute(Set<String> scanKeys, AtomicLong atomicLong);
+    void execute(Set<String> scanKeys, CountDownLatch countDownLatch, AtomicLong atomicLong);
 }

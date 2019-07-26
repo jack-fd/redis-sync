@@ -27,7 +27,7 @@ public class TargetRedisConfig extends RedisConfig {
         return newJedisConnectionFactory(dbIndex, host, port, password);
     }
 
-    @Bean
+    @Bean(name = "targetRedisTemplate")
     public RedisTemplate targetRedisTemplate() {
         RedisTemplate template = new RedisTemplate();
         template.setConnectionFactory(targetRedisConnectionFactory());
@@ -36,7 +36,7 @@ public class TargetRedisConfig extends RedisConfig {
         return template;
     }
 
-    @Bean
+    @Bean(name = "targetStringRedisTemplate")
     public StringRedisTemplate targetStringRedisTemplate() {
         StringRedisTemplate template = new StringRedisTemplate();
         template.setConnectionFactory(targetRedisConnectionFactory());

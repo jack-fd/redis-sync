@@ -8,10 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.DataType;
-import org.springframework.data.redis.core.Cursor;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ScanOptions;
-import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.core.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -32,15 +29,22 @@ public class RedisDataSyncServiceImpl implements RedisDataSyncService {
     private RedisTemplate<String, Object> sourceRedisTemplate;
 
     @Autowired
+    private StringRedisTemplate sourceStringRedisTemplate;
+
+    @Autowired
     @Qualifier("targetRedisTemplate")
     private RedisTemplate<String, Object> targetRedisTemplate;
+
+    @Autowired
+    @Qualifier("targetStringRedisTemplate")
+    private StringRedisTemplate targetStringRedisTemplate;
 
     @Value("${rewrite:true}")
     private Boolean rewrite;
 
     @Async("asyncServiceExecutor")
     @Override
-    public void execute(Set<String> keys, AtomicLong atomicLong) {
+    public void execute(Set<String> keys, CountDownLatch countDownLatch, AtomicLong atomicLong) {
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
         try {
@@ -53,7 +57,7 @@ public class RedisDataSyncServiceImpl implements RedisDataSyncService {
                 if (Objects.isNull(dataType)) {
                     continue;
                 }
-                log.info(key + "进行中.....");
+                log.info("key:{}, type:{}, 进行中....", key, dataType);
                 atomicLong.incrementAndGet();
                 switch (dataType) {
                     case NONE:
@@ -81,20 +85,20 @@ public class RedisDataSyncServiceImpl implements RedisDataSyncService {
             }
         } finally {
             log.info("数据同步共耗时:{}ms", stopWatch.getTime());
-//            countDownLatch.countDown();
+            countDownLatch.countDown();
         }
     }
 
     private void copyString(String key) {
-        Object value = sourceRedisTemplate.opsForValue().get(key);
+        Long expire = sourceStringRedisTemplate.getExpire(key, TimeUnit.SECONDS);
+        String value = sourceStringRedisTemplate.opsForValue().get(key);
         if (Objects.isNull(value)) {
             return;
         }
-        Long expire = sourceRedisTemplate.getExpire(key, TimeUnit.SECONDS);
         if (Objects.nonNull(expire) && expire > -1) {
-            targetRedisTemplate.opsForValue().set(key, value, expire, TimeUnit.SECONDS);
+            targetStringRedisTemplate.opsForValue().set(key, value, expire, TimeUnit.SECONDS);
         } else {
-            targetRedisTemplate.opsForValue().set(key, value);
+            targetStringRedisTemplate.opsForValue().set(key, value);
         }
     }
 
@@ -142,7 +146,10 @@ public class RedisDataSyncServiceImpl implements RedisDataSyncService {
 
     private void setExpire(String key) {
         Long expire = sourceRedisTemplate.getExpire(key, TimeUnit.SECONDS);
-        if (Objects.nonNull(expire) && expire > -1) {
+        if (Objects.isNull(expire)) {
+            targetRedisTemplate.expire(key, 10, TimeUnit.SECONDS);
+        }
+        if (expire > -1) {
             targetRedisTemplate.expire(key, expire, TimeUnit.SECONDS);
         }
     }
